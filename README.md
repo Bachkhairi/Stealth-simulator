@@ -35,6 +35,6 @@ This project uses Three.js for rendering and Q-learning for the agent's decision
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/gridworld-simulation.git
-   cd gridworld-simulation
+   git clone https://github.com/Bachkhairi/Stealth-simulator
+   cd Stealth-simulator
    npm run dev
