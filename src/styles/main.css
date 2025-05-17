@@ -1,0 +1,99 @@
+/* Reset default margins and ensure full height */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #ffffff !important;
+  font-family: Arial, sans-serif;
+}
+
+/* Main container for canvas and controls */
+#container {
+  display: flex;
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+/* Canvas for Three.js */
+#canvas {
+  flex: 1;
+  background-color: #ffffff;
+}
+
+/* Sidebar for controls and metrics */
+#controls {
+  width: 300px;
+  background-color: #f8f8f8;
+  padding: 20px;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  border-left: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Heading */
+#controls h1 {
+  font-size: 24px;
+  margin: 0 0 10px;
+  color: #333;
+}
+
+/* Button group */
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Buttons */
+.button-group button {
+  padding: 12px;
+  font-size: 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.button-group button:hover {
+  background-color: #0056b3;
+}
+
+/* Metrics */
+#metrics {
+  font-size: 14px;
+  color: #333;
+}
+
+#metrics p {
+  margin: 8px 0;
+}
+
+#metrics span {
+  font-weight: bold;
+  color: #007bff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #controls {
+    width: 200px;
+    padding: 15px;
+  }
+
+  #controls h1 {
+    font-size: 20px;
+  }
+
+  .button-group button {
+    padding: 10px;
+    font-size: 14px;
+  }
+
+  #metrics {
+    font-size: 12px;
+  }
+}
