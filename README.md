@@ -1,4 +1,4 @@
-# GridWorld Simulation
+# Stealth Mission Simulator
 
 Welcome to the GridWorld Simulation, a reinforcement learning environment where an agent navigates a grid to reach a goal while avoiding patrolling enemies.  
 This project uses Three.js for rendering, Q-learning for the agent's decision-making, and a customizable map with configurable enemy patterns.
