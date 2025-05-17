@@ -28,9 +28,13 @@ This project uses Three.js for rendering and Q-learning for the agent's decision
 
 ---
 
+![image](https://github.com/user-attachments/assets/82ee999e-746d-4e56-938d-1bae8aefad49)
+
+
 ## Installation
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/gridworld-simulation.git
    cd gridworld-simulation
+   npm run dev
