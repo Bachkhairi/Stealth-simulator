@@ -19,24 +19,26 @@ export class GridWorld {
       alpha: 0.1, 
       gamma: 0.9, 
       epsilon: 1.0, 
-      epsilonDecay: 0.995, 
-      minEpsilon: 0.01,
-      timePenalty: -0.05, 
-      distancePenalty: -0.02, 
-      forwardReward: 0.1,
-      enemyRadius: 1.5, // Circular LOS radius
-      proximityWeight: 10.0, // Weight for proximity penalty
-      riskExposureWeight: 5.0, // Weight for risk exposure penalty
-      safeDistanceReward: 0.2, // Reward for maintaining safe distance
-      coverStreakBonus: 0.05, // Bonus for consecutive steps in cover
-      explorationBonus: 0.05 // Bonus for visiting new tiles
+      epsilonDecay: 0.99,
+      minEpsilon: 0.005,
+      timePenalty: -0.01, // Reduced
+      distancePenalty: -0.005, // Reduced
+      forwardReward: 0.5, // Increased
+      enemyRadius: 1.5,
+      proximityWeight: 15.0,
+      riskExposureWeight: 5.0,
+      safeDistanceReward: 0.2,
+      coverStreakBonus: 0.05,
+      explorationBonus: 0.05,
+      predictiveWaitReward: 0.15
     };
     this.losCache = this.precomputeLOSCache();
     this.totalExposures = 0;
-    this.riskExposure = 0; // Tracks cumulative risk exposure
-    this.coverStreak = 0; // Tracks consecutive steps in cover
-    this.visitedTiles = new Set(); // Tracks visited tiles for exploration bonus
-    this.visitedTiles.add(this.agentPos.toString()); // Add starting position
+    this.riskExposure = 0;
+    this.coverStreak = 0;
+    this.visitedTiles = new Set();
+    this.visitedTiles.add(this.agentPos.toString());
+    this.prevMinDistance = this.getMinDistanceToEnemy();
   }
 
   createGrid() {
@@ -137,6 +139,19 @@ export class GridWorld {
     return false;
   }
 
+  isAtRiskOfDetection() {
+    for (const enemy of this.enemies) {
+      const [ex, ey] = enemy.pos;
+      const dx = this.agentPos[0] - ex;
+      const dy = this.agentPos[1] - ey;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance <= 1.5 && this.grid[this.agentPos[0]][this.agentPos[1]] !== 'C') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   getMinDistanceToEnemy() {
     let minDistance = Infinity;
     for (const enemy of this.enemies) {
@@ -145,7 +160,7 @@ export class GridWorld {
       const distance = Math.sqrt(dx * dx + dy * dy);
       minDistance = Math.min(minDistance, distance);
     }
-    return Math.max(0.1, minDistance); // Cap at 0.1 to avoid division by zero
+    return Math.max(0.1, minDistance);
   }
 
   getRiskExposure() {
@@ -154,7 +169,7 @@ export class GridWorld {
       const dx = this.agentPos[0] - enemy.pos[0];
       const dy = this.agentPos[1] - enemy.pos[1];
       const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance <= 3.0) exposureCount++; // Count enemies within 3-unit radius
+      if (distance <= 3.0) exposureCount++;
     }
     return exposureCount;
   }
@@ -177,11 +192,16 @@ export class GridWorld {
       const [ex, ey] = enemy.pos;
       return Math.abs(ex - this.agentPos[0]) <= obsRadius && Math.abs(ey - this.agentPos[1]) <= obsRadius;
     });
+    const enemyInfo = this.enemies.map(enemy => ({
+      pos: enemy.pos,
+      facing: enemy.facing
+    }));
     return JSON.stringify({
       agentPos: this.agentPos,
       returning: this.returning,
       obs,
       enemyVisible,
+      enemyInfo,
       riskExposure: this.riskExposure > 0 ? 1 : 0
     });
   }
@@ -190,16 +210,33 @@ export class GridWorld {
     let reward = this.params.timePenalty;
     const [x, y] = this.agentPos;
     const target = this.returning ? [0, 0] : [9, 9];
-    const prevDistance = Math.sqrt((this.agentPos[0] - target[0]) ** 2 + (this.agentPos[1] - target[1]) ** 2);
+    const prevDistance = this.prevDistance || Math.sqrt((this.agentPos[0] - target[0]) ** 2 + (this.agentPos[1] - target[1]) ** 2);
     const newDistance = Math.sqrt((this.agentPos[0] - target[0]) ** 2 + (this.agentPos[1] - target[1]) ** 2);
+    this.prevDistance = newDistance;
+
+    // Enhanced forward reward for good steps
     if (newDistance < prevDistance) {
-      reward += this.params.forwardReward;
+      let forwardReward = this.params.forwardReward;
+      // Scale reward inversely with distance (closer to target = higher reward)
+      forwardReward *= (10 / Math.max(1, newDistance)); // Scale factor, capped at 10
+      // Adjust based on safety
+      const minDistance = this.getMinDistanceToEnemy();
+      const atRisk = this.isAtRiskOfDetection();
+      if (minDistance > 3.0) {
+        forwardReward *= 1.5; // Safe step bonus
+      } else if (atRisk) {
+        forwardReward *= 0.5; // Risky step penalty
+      } else if (minDistance <= 3.0) {
+        forwardReward *= 0.75; // Near enemy but not at risk
+      }
+      reward += forwardReward;
+      Logger.log(`Good step: Distance decreased to ${newDistance.toFixed(2)}, forwardReward: ${forwardReward.toFixed(2)}`);
     }
     reward += this.params.distancePenalty * newDistance;
 
     // Cover bonus and streak
     if (this.grid[x][y] === 'C') {
-      reward += 0.2; // Increased cover bonus
+      reward += 0.2;
       this.coverStreak++;
       reward += this.coverStreak * this.params.coverStreakBonus;
     } else {
@@ -214,9 +251,10 @@ export class GridWorld {
       this.coverStreak = 0;
     }
 
-    // Proximity penalty
+    // Proximity penalty (capped)
     const minDistance = this.getMinDistanceToEnemy();
-    reward -= this.params.proximityWeight / minDistance;
+    const proximityPenalty = Math.min(1.0, this.params.proximityWeight / minDistance); // Cap at 1.0
+    reward -= proximityPenalty;
 
     // Risk exposure penalty
     const exposureCount = this.getRiskExposure();
@@ -232,16 +270,19 @@ export class GridWorld {
       reward += this.params.safeDistanceReward;
     }
 
+    // Predictive wait reward
+    const enemyApproaching = minDistance < this.prevMinDistance && minDistance <= 3.0;
+    this.prevMinDistance = minDistance;
+    if (this.stats.step > 0 && this.agentPos.toString() === this.getPreviousPos().toString() && enemyApproaching) {
+      reward += this.params.predictiveWaitReward;
+      Logger.log(`Predictive wait rewarded at ${JSON.stringify(this.agentPos)}, enemy approaching, distance: ${minDistance}`);
+    }
+
     // Exploration bonus
     const tileKey = this.agentPos.toString();
     if (!this.visitedTiles.has(tileKey)) {
       this.visitedTiles.add(tileKey);
       reward += this.params.explorationBonus;
-    }
-
-    // Small penalty for waiting
-    if (this.stats.step > 0 && this.agentPos.toString() === this.getPreviousPos().toString()) {
-      reward -= 0.01;
     }
 
     return reward;
@@ -264,7 +305,7 @@ export class GridWorld {
       const newState = this.getState();
       this.updateQTable(state, action, reward, newState);
       const resetResult = this.resetSimulation();
-      this.agentPos = [0, 0]; // Explicitly set agentPos to ensure reset
+      this.agentPos = [0, 0];
       Logger.log(`Reset to position ${JSON.stringify(this.agentPos)}, episode ${this.stats.episode}`);
       return { ...resetResult, agentPos: this.agentPos, done: false, reward, running: true };
     }
@@ -285,7 +326,7 @@ export class GridWorld {
     if (action !== 'wait' && (newPos[0] < 0 || newPos[0] >= this.grid.length || newPos[1] < 0 || newPos[1] >= this.grid[0].length || this.grid[newPos[0]][newPos[1]] === 'W')) {
       newPos[0] = this.agentPos[0];
       newPos[1] = this.agentPos[1];
-      reward = -1; // Wall penalty
+      reward = -1;
     } else {
       this.agentPos = newPos;
       if (this.grid[newPos[0]][newPos[1]] === 'C') this.stats.coverUses++;
@@ -319,8 +360,43 @@ export class GridWorld {
     if (Math.random() < this.params.epsilon) {
       return this.actions[Math.floor(Math.random() * this.actions.length)];
     }
+
     const qValues = this.qTable[state] || this.actions.reduce((acc, a) => ({ ...acc, [a]: 0 }), {});
-    return Object.keys(qValues).reduce((a, b) => qValues[a] > qValues[b] ? a : b);
+    let bestAction = Object.keys(qValues).reduce((a, b) => qValues[a] > qValues[b] ? a : b);
+
+    const minDistance = this.getMinDistanceToEnemy();
+    if (minDistance <= 3.0) {
+      const actionScores = {};
+      this.actions.forEach(action => {
+        const newPos = [...this.agentPos];
+        if (action === 'up') newPos[0]--;
+        else if (action === 'down') newPos[0]++;
+        else if (action === 'left') newPos[1]--;
+        else if (action === 'right') newPos[1]++;
+        else if (action === 'wait') {
+          actionScores[action] = qValues[action] + 0.1;
+          return;
+        }
+
+        if (newPos[0] < 0 || newPos[0] >= this.grid.length || newPos[1] < 0 || newPos[1] >= this.grid[0].length || this.grid[newPos[0]][newPos[1]] === 'W') {
+          actionScores[action] = qValues[action] - 1;
+          return;
+        }
+
+        let minDist = Infinity;
+        this.enemies.forEach(enemy => {
+          const dx = newPos[0] - enemy.pos[0];
+          const dy = newPos[1] - enemy.pos[1];
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          minDist = Math.min(minDist, dist);
+        });
+        actionScores[action] = qValues[action] + (minDist > minDistance ? 0.1 : -0.1);
+      });
+      bestAction = Object.keys(actionScores).reduce((a, b) => actionScores[a] > actionScores[b] ? a : b);
+      Logger.log(`Heuristic applied: Chose ${bestAction} with scores ${JSON.stringify(actionScores)}`);
+    }
+
+    return bestAction;
   }
 
   updateQTable(state, action, reward, newState) {
@@ -340,6 +416,8 @@ export class GridWorld {
     this.coverStreak = 0;
     this.visitedTiles.clear();
     this.visitedTiles.add(this.agentPos.toString());
+    this.prevMinDistance = this.getMinDistanceToEnemy();
+    this.prevDistance = null;
     Logger.log(`Reset to episode ${this.stats.episode}`);
     return { agentPos: this.agentPos, path: [this.agentPos] };
   }
