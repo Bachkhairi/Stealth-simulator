@@ -13,17 +13,19 @@ const TILE_TYPES = {
 };
 
 export class SceneManager {
-  constructor(canvas, grid, params, gridWorldApp, gridWidth = 10, gridHeight = 10) {
+  constructor(canvas, grid, params, gridWorldApp) {
     Logger.log("Initializing SceneManager");
     this.canvas = canvas;
     this.grid = grid;
     this.params = params;
-    this.gridWorldApp = gridWorldApp; // Reference to GridWorldApp for LOS mode
+    this.gridWorldApp = gridWorldApp;
+    this.gridWidth = grid[0].length;
+    this.gridHeight = grid.length;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xffffff);
     this.camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-    const centerX = gridWidth / 2 - 0.5;
-    const centerY = gridHeight / 2 - 0.5;
+    const centerX = this.gridWidth / 2 - 0.5;
+    const centerY = this.gridHeight / 2 - 0.5;
     this.camera.position.set(centerX, centerY, 20);
     this.camera.lookAt(centerX, centerY, 0);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -33,6 +35,7 @@ export class SceneManager {
     this.controls.target.set(centerX, centerY, 0);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
+    this.controls.enablePan = true;
     this.controls.update();
     this.agentMesh = null;
     this.glowMesh = null;
@@ -43,7 +46,7 @@ export class SceneManager {
     this.pathGeometry = new THREE.BufferGeometry();
     this.pathMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
     this.setupScene();
-    this.setupGridLines(gridWidth, gridHeight);
+    this.setupGridLines();
     this.setupResize();
   }
 
@@ -56,34 +59,34 @@ export class SceneManager {
     Logger.log("Scene setup complete");
   }
 
-  setupGridLines(width, height) {
+  setupGridLines() {
     const lines = [];
     const material = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
-    for (let i = 0; i <= width; i++) {
+    for (let i = 0; i <= this.gridWidth; i++) {
       lines.push(new THREE.Vector3(i - 0.5, -0.5, 0.01));
-      lines.push(new THREE.Vector3(i - 0.5, height - 0.5, 0.01));
+      lines.push(new THREE.Vector3(i - 0.5, this.gridHeight - 0.5, 0.01));
     }
-    for (let j = 0; j <= height; j++) {
+    for (let j = 0; j <= this.gridHeight; j++) {
       lines.push(new THREE.Vector3(-0.5, j - 0.5, 0.01));
-      lines.push(new THREE.Vector3(width - 0.5, j - 0.5, 0.01));
+      lines.push(new THREE.Vector3(this.gridWidth - 0.5, j - 0.5, 0.01));
     }
     const geometry = new THREE.BufferGeometry().setFromPoints(lines);
     const gridLines = new THREE.LineSegments(geometry, material);
     this.scene.add(gridLines);
-    Logger.log("Grid lines added");
+    Logger.log("Grid lines added for " + this.gridWidth + "x" + this.gridHeight + " grid");
   }
 
-  renderGrid(grid) {
+  renderGrid() {
     const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const instanceCount = grid.length * grid[0].length;
+    const instanceCount = this.gridHeight * this.gridWidth;
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
     const instanceMesh = new THREE.InstancedMesh(tileGeometry, material, instanceCount);
     const colors = new Float32Array(instanceCount * 3);
 
     let instanceId = 0;
-    for (let i = 0; i < grid.length; i++) {
-      for (let j = 0; j < grid[0].length; j++) {
-        const tileType = grid[i][j] || '.';
+    for (let i = 0; i < this.gridHeight; i++) {
+      for (let j = 0; j < this.gridWidth; j++) {
+        const tileType = this.grid[i][j] || '.';
         const tileInfo = TILE_TYPES[tileType];
         const matrix = new THREE.Matrix4();
         matrix.setPosition(j, i, tileInfo.height / 2);
@@ -131,7 +134,7 @@ export class SceneManager {
     const enemyGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
     const coneGeometry = new THREE.CircleGeometry(1, 32);
     const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.5, linewidth: 10 }); // Thicker line (1 grid square ≈ 10 pixels)
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.5, linewidth: 10 });
 
     enemies.forEach((enemy, index) => {
       const material = new THREE.MeshLambertMaterial({ color: 0xff3333 });
@@ -164,6 +167,72 @@ export class SceneManager {
     Logger.log(`Enemies and LOS (${losDisplayMode}) created`);
   }
 
+  updateEnemies(enemies) {
+    enemies.forEach((enemy, index) => {
+      if (this.enemyMeshes[index]) {
+        this.enemyMeshes[index].position.set(enemy.pos[1], enemy.pos[0], 0.2);
+        if (this.losCones[index]) {
+          this.losCones[index].position.set(enemy.pos[1], enemy.pos[0], 0.1);
+        } else if (this.losLines[index]) {
+          const start = new THREE.Vector3(enemy.pos[1], enemy.pos[0], 0.1);
+          let end;
+          const losLength = this.params.enemyRadius || 1.5;
+          if (enemy.facing === 'right') end = new THREE.Vector3(enemy.pos[1] + losLength, enemy.pos[0], 0.1);
+          else if (enemy.facing === 'left') end = new THREE.Vector3(enemy.pos[1] - losLength, enemy.pos[0], 0.1);
+          else if (enemy.facing === 'down') end = new THREE.Vector3(enemy.pos[1], enemy.pos[0] + losLength, 0.1);
+          else end = new THREE.Vector3(enemy.pos[1], enemy.pos[0] - losLength, 0.1);
+          const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+          this.losLines[index].geometry.dispose();
+          this.losLines[index].geometry = geometry;
+        }
+      }
+    });
+    Logger.log("Enemy positions updated without re-creating meshes");
+  }
+
+  animateEnemies(enemies, callback) {
+    const animations = [];
+    enemies.forEach((enemy, index) => {
+      if (this.enemyMeshes[index]) {
+        const currentPos = this.enemyMeshes[index].position;
+        const targetPos = { x: enemy.pos[1], y: enemy.pos[0], z: 0.2 };
+        const tween = new TWEEN.Tween(currentPos)
+          .to(targetPos, 400)
+          .easing(TWEEN.Easing.Sinusoidal.InOut)
+          .onUpdate(() => {
+            this.enemyMeshes[index].position.copy(currentPos);
+            if (this.losCones[index]) {
+              this.losCones[index].position.set(currentPos.x, currentPos.y, 0.1);
+            } else if (this.losLines[index]) {
+              const start = new THREE.Vector3(currentPos.x, currentPos.y, 0.1);
+              let end;
+              const losLength = this.params.enemyRadius || 1.5;
+              if (enemy.facing === 'right') end = new THREE.Vector3(currentPos.x + losLength, currentPos.y, 0.1);
+              else if (enemy.facing === 'left') end = new THREE.Vector3(currentPos.x - losLength, currentPos.y, 0.1);
+              else if (enemy.facing === 'down') end = new THREE.Vector3(currentPos.x, currentPos.y + losLength, 0.1);
+              else end = new THREE.Vector3(currentPos.x, currentPos.y - losLength, 0.1);
+              const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+              this.losLines[index].geometry.dispose();
+              this.losLines[index].geometry = geometry;
+            }
+          });
+        animations.push(tween);
+      }
+    });
+
+    if (animations.length > 0) {
+      const group = new TWEEN.Group();
+      animations.forEach(tween => tween.group(group));
+      animations[0].onComplete(() => {
+        Logger.log("Enemy animations completed");
+        if (callback) callback();
+      });
+      animations.forEach(tween => tween.start());
+    } else if (callback) {
+      callback();
+    }
+  }
+
   updateEnemyRadius(radius) {
     this.params.enemyRadius = radius;
     if (this.gridWorldApp.getLOSDisplayMode() === 'radius') {
@@ -172,12 +241,6 @@ export class SceneManager {
       });
     }
     Logger.log(`Updated enemy radius to ${radius}`);
-  }
-
-  updateLOSCone(cone, enemy) {
-    cone.position.set(enemy.pos[1], enemy.pos[0], 0.1);
-    const radius = this.params.enemyRadius || 1.5;
-    cone.scale.set(radius, radius, 1);
   }
 
   getLOSPositions(enemy) {
@@ -190,6 +253,18 @@ export class SceneManager {
       if (callback) callback();
       return;
     }
+
+    if (detected) {
+      this.flashAgentRed(() => {
+        Logger.log("Agent flash animation completed, proceeding to position update or reset");
+        this.performAgentAnimation(agentPos, grid, enemies, callback);
+      });
+    } else {
+      this.performAgentAnimation(agentPos, grid, enemies, callback);
+    }
+  }
+
+  performAgentAnimation(agentPos, grid, enemies, callback) {
     const targetPos = {
       x: agentPos[1],
       y: agentPos[0],
@@ -206,13 +281,26 @@ export class SceneManager {
         if (grid[agentPos[0]][agentPos[1]] === 'G' || (agentPos[0] === 0 && agentPos[1] === 0)) {
           this.pulseGlow();
         }
-        if (detected) {
-          this.flashAgentRed();
-        }
-        this.createEnemies(enemies);
+        this.updateEnemies(enemies);
         if (callback) callback();
       })
       .start();
+  }
+
+  flashAgentRed(callback) {
+    if (!this.agentMesh) {
+      Logger.error("Agent mesh missing, cannot flash red");
+      if (callback) callback();
+      return;
+    }
+    const originalColor = this.agentMaterial.color.getHex();
+    this.agentMaterial.color.set(0xff0000);
+    Logger.log("Agent flashing red due to detection");
+    setTimeout(() => {
+      this.agentMaterial.color.set(originalColor);
+      Logger.log("Agent color restored");
+      if (callback) callback();
+    }, 500);
   }
 
   pulseGlow() {
@@ -230,16 +318,6 @@ export class SceneManager {
     Logger.log("Glow pulsed on Goal or Start");
   }
 
-  flashAgentRed() {
-    if (!this.agentMesh) return;
-    const originalColor = this.agentMaterial.color.getHex();
-    this.agentMaterial.color.set(0xff0000);
-    setTimeout(() => {
-      this.agentMaterial.color.set(originalColor);
-    }, 500);
-    Logger.log("Agent flashed red on detection");
-  }
-
   updateAgent(agentPos, grid, enemies) {
     if (this.agentMesh && this.glowMesh) {
       this.agentMesh.position.set(
@@ -249,7 +327,7 @@ export class SceneManager {
       );
       this.glowMesh.position.copy(this.agentMesh.position);
       this.glowMesh.scale.set(1, 1, 1);
-      this.createEnemies(enemies);
+      this.updateEnemies(enemies);
     }
   }
 
@@ -272,9 +350,9 @@ export class SceneManager {
 
   setupResize() {
     window.addEventListener('resize', () => {
-      this.camera.aspect = this.canvas.clientWidth / canvas.clientHeight;
+      this.camera.aspect = this.canvas.clientWidth / this.canvas.clientHeight;
       this.camera.updateProjectionMatrix();
-      this.renderer.setSize(this.canvas.clientWidth, canvas.clientHeight);
+      this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
     });
   }
 
