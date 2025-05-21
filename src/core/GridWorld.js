@@ -1,8 +1,9 @@
 import { Logger } from '../utils/Logger.js';
 
 export class GridWorld {
-  constructor() {
+  constructor(app) {
     Logger.log("Initializing GridWorld core");
+    this.app = app; // Reference to GridWorldApp for losDisplayMode
     this.grid = this.createGrid();
     this.agentPos = [0, 0];
     this.goalPos = [14, 14];
@@ -31,7 +32,7 @@ export class GridWorld {
       minEpsilon: 0.01,
       timePenalty: -0.1,
       forwardReward: 1.0,
-      enemyRadius: 1.5, // Reverted to older value
+      enemyRadius: 1.5,
       proximityWeight: 3.0,
       riskExposureWeight: 1.5,
       safeDistanceReward: 0.2,
@@ -41,8 +42,7 @@ export class GridWorld {
       stealthReward: 0.1,
       detectionPenalty: -10.0,
       losRange: 4,
-      stagnationPenalty: -1.0,
-      useLOS: false // Default to distance-based detection
+      stagnationPenalty: -1.0
     };
     this.losCache = this.precomputeLOSCache();
     this.totalExposures = 0;
@@ -160,14 +160,15 @@ export class GridWorld {
       for (let x = 0; x < this.grid.length; x++) {
         for (let y = 0; y < this.grid[0].length; y++) {
           cache[`${x},${y}`] = {
-            right: this.computeLOS(x, y, 'right'),
-            left: this.computeLOS(x, y, 'left'),
-            down: this.computeLOS(x, y, 'down'),
-            up: this.computeLOS(x, y, 'up')
+            right: this.computeLOS(x, y, 'right', 'line'),
+            left: this.computeLOS(x, y, 'left', 'line'),
+            down: this.computeLOS(x, y, 'down', 'line'),
+            up: this.computeLOS(x, y, 'up', 'line'),
+            radius: this.computeLOS(x, y, null, 'radius')
           };
-          Logger.log(`LOS cache for [${x},${y}]: ${JSON.stringify(cache[`${x},${y}`])}`);
         }
       }
+      Logger.log("LOS cache precomputed for all positions");
       return cache;
     } catch (e) {
       Logger.error(`Error in precomputeLOSCache: ${e.message}`);
@@ -175,30 +176,49 @@ export class GridWorld {
     }
   }
 
-  computeLOS(x, y, facing) {
+  computeLOS(x, y, facing, mode) {
     try {
       const los = [];
-      let range = this.params.losRange;
-      if (this.grid[x][y] === 'C') range = range / 2;
-      if (facing === 'right') {
-        for (let i = 1; i <= range && y + i < this.grid[0].length; i++) {
-          if (this.grid[x][y + i] === 'W') break;
-          los.push([x, y + i]);
+      const range = mode === 'radius' ? this.params.enemyRadius : this.params.losRange;
+      const effectiveRange = this.grid[x][y] === 'C' ? range / 2 : range;
+
+      if (mode === 'radius') {
+        // Circular LOS: all tiles within enemyRadius
+        const radiusSquared = effectiveRange * effectiveRange;
+        const gridHeight = this.grid.length;
+        const gridWidth = this.grid[0].length;
+        for (let i = Math.max(0, x - Math.ceil(effectiveRange)); i <= Math.min(gridHeight - 1, x + Math.ceil(effectiveRange)); i++) {
+          for (let j = Math.max(0, y - Math.ceil(effectiveRange)); j <= Math.min(gridWidth - 1, y + Math.ceil(effectiveRange)); j++) {
+            if (i === x && j === y) continue;
+            const dx = i - x;
+            const dy = j - y;
+            if (dx * dx + dy * dy <= radiusSquared && this.grid[i][j] !== 'W') {
+              los.push([i, j]);
+            }
+          }
         }
-      } else if (facing === 'left') {
-        for (let i = 1; i <= range && y - i >= 0; i++) {
-          if (this.grid[x][y - i] === 'W') break;
-          los.push([x, y - i]);
-        }
-      } else if (facing === 'down') {
-        for (let i = 1; i <= range && x + i < this.grid.length; i++) {
-          if (this.grid[x + i][y] === 'W') break;
-          los.push([x + i, y]);
-        }
-      } else if (facing === 'up') {
-        for (let i = 1; i <= range && x - i >= 0; i++) {
-          if (this.grid[x - i][y] === 'W') break;
-          los.push([x - i, y]);
+      } else if (mode === 'line') {
+        // Directional LOS: tiles in facing direction up to losRange
+        if (facing === 'right') {
+          for (let j = 1; j <= effectiveRange && y + j < this.grid[0].length; j++) {
+            if (this.grid[x][y + j] === 'W') break;
+            los.push([x, y + j]);
+          }
+        } else if (facing === 'left') {
+          for (let j = 1; j <= effectiveRange && y - j >= 0; j++) {
+            if (this.grid[x][y - j] === 'W') break;
+            los.push([x, y - j]);
+          }
+        } else if (facing === 'down') {
+          for (let i = 1; i <= effectiveRange && x + i < this.grid.length; i++) {
+            if (this.grid[x + i][y] === 'W') break;
+            los.push([x + i, y]);
+          }
+        } else if (facing === 'up') {
+          for (let i = 1; i <= effectiveRange && x - i >= 0; i++) {
+            if (this.grid[x - i][y] === 'W') break;
+            los.push([x - i, y]);
+          }
         }
       }
       return los;
@@ -255,50 +275,48 @@ export class GridWorld {
         Logger.error("Invalid state in isDetected, skipping detection");
         return false;
       }
+      const losDisplayMode = this.app ? this.app.getLOSDisplayMode() : 'radius';
+      if (losDisplayMode === 'none') {
+        Logger.log("Detection disabled (LOS mode: none)");
+        return false;
+      }
+      const isInCover = this.grid[this.agentPos[0]][this.agentPos[1]] === 'C';
+      if (isInCover) {
+        Logger.log(`Agent at ${JSON.stringify(this.agentPos)} is in cover, not detected`);
+        return false;
+      }
+
       for (const enemy of this.enemies) {
         if (!enemy.pos || !enemy.facing) {
           Logger.error(`Invalid enemy state: ${JSON.stringify(enemy)}`);
           continue;
         }
-        Logger.log(`Enemy state: pos=${JSON.stringify(enemy.pos)}, facing=${enemy.facing}, phase=${enemy.phase}`);
         const [ex, ey] = enemy.pos;
         const dx = this.agentPos[0] - ex;
         const dy = this.agentPos[1] - ey;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const isInCover = this.grid[this.agentPos[0]][this.agentPos[1]] === 'C';
-        
-        if (!this.params.useLOS) {
-          // Distance-based detection (older script style)
-          if (distance <= this.params.enemyRadius && !isInCover) {
-            Logger.log(`Agent detected at ${JSON.stringify(this.agentPos)} by enemy at ${JSON.stringify(enemy.pos)}, distance: ${distance.toFixed(2)}, radius: ${this.params.enemyRadius}`);
-            return true;
-          }
-          Logger.log(`Distance check: Agent at ${JSON.stringify(this.agentPos)}, enemy at ${JSON.stringify(enemy.pos)}, distance: ${distance.toFixed(2)}, radius: ${this.params.enemyRadius}, inCover: ${isInCover}`);
-          continue;
-        }
 
-        // LOS-based detection (current style)
-        const losTiles = this.losCache[`${ex},${ey}`]?.[enemy.facing] || [];
-        if (!losTiles.length) {
-          Logger.log(`No LOS tiles for enemy at [${ex},${ey}] facing ${enemy.facing}`);
-          continue;
-        }
-        Logger.log(`Checking LOS: enemy=${JSON.stringify(enemy.pos)}, facing=${enemy.facing}, agent=${JSON.stringify(this.agentPos)}, losTiles=${JSON.stringify(losTiles)}`);
-        const inLOS = losTiles.some(([lx, ly]) => lx === this.agentPos[0] && ly === this.agentPos[1]);
-        Logger.log(`Agent at ${JSON.stringify(this.agentPos)}, inLOS=${inLOS}`);
-        if (inLOS) {
-          Logger.log(`Distance: ${distance.toFixed(2)}, radius: ${this.params.enemyRadius}, inCover: ${isInCover}`);
-          if (distance <= this.params.enemyRadius && !isInCover) {
-            Logger.log(`Agent detected at ${JSON.stringify(this.agentPos)} by enemy at ${JSON.stringify(enemy.pos)}, distance: ${distance.toFixed(2)}, radius: ${this.params.enemyRadius}, facing: ${enemy.facing}, LOS: ${JSON.stringify(losTiles)}`);
-            return true;
-          } else {
-            Logger.log(`Agent at ${JSON.stringify(this.agentPos)} in LOS but not detected: distance ${distance.toFixed(2)} > radius ${this.params.enemyRadius} or in cover`);
+        if (losDisplayMode === 'radius') {
+          // Circular detection based on enemyRadius
+          if (distance <= this.params.enemyRadius) {
+            const losTiles = this.losCache[`${ex},${ey}`]?.radius || [];
+            const inLOS = losTiles.some(([lx, ly]) => lx === this.agentPos[0] && ly === this.agentPos[1]);
+            if (inLOS) {
+              Logger.log(`Agent detected at ${JSON.stringify(this.agentPos)} by enemy at ${JSON.stringify(enemy.pos)} in radius mode, distance: ${distance.toFixed(2)}`);
+              return true;
+            }
           }
-        } else {
-          Logger.log(`Agent at ${JSON.stringify(this.agentPos)} not in LOS of enemy at ${JSON.stringify(enemy.pos)}, facing: ${enemy.facing}`);
+        } else if (losDisplayMode === 'line') {
+          // Directional detection based on facing and losRange
+          const losTiles = this.losCache[`${ex},${ey}`]?.[enemy.facing] || [];
+          const inLOS = losTiles.some(([lx, ly]) => lx === this.agentPos[0] && ly === this.agentPos[1]);
+          if (inLOS && distance <= this.params.losRange) {
+            Logger.log(`Agent detected at ${JSON.stringify(this.agentPos)} by enemy at ${JSON.stringify(enemy.pos)} in line mode, facing: ${enemy.facing}, distance: ${distance.toFixed(2)}`);
+            return true;
+          }
         }
+        Logger.log(`Agent at ${JSON.stringify(this.agentPos)} not detected by enemy at ${JSON.stringify(enemy.pos)}, mode: ${losDisplayMode}, distance: ${distance.toFixed(2)}, inCover: ${isInCover}`);
       }
-      Logger.log(`Final detection result: false`);
       return false;
     } catch (e) {
       Logger.error(`Error in isDetected: ${e.message}`);
@@ -383,26 +401,26 @@ export class GridWorld {
     }
   }
 
+  discretizeDistance(distance) {
+    // Bucket distances: near (<3), mid (3-6), far (>6)
+    if (distance < 3) return 0; // near
+    if (distance <= 6) return 1; // mid
+    return 2; // far
+  }
+
   getState() {
     try {
-      const target = this.returning ? [0, 0] : [14, 14];
-      const goalDistance = Math.abs(this.agentPos[0] - target[0]) + Math.abs(this.agentPos[1] - target[1]);
       const minEnemyDistance = this.getMinDistanceToEnemy();
       const inCover = this.grid[this.agentPos[0]][this.agentPos[1]] === 'C' ? 1 : 0;
-      const closestEnemy = this.getClosestEnemyInfo();
-      const state = {
-        agentPos: this.agentPos,
-        goalDistance: Math.round(goalDistance),
-        minEnemyDistance: Math.round(minEnemyDistance * 10) / 10,
-        inCover,
-        returning: this.returning,
-        closestEnemy: closestEnemy.pos ? { pos: closestEnemy.pos } : null
-      };
-      Logger.log(`State: ${JSON.stringify(state)}`);
-      return JSON.stringify(state);
+      const distanceBucket = this.discretizeDistance(minEnemyDistance);
+      const missionPhase = this.returning ? 1 : 0;
+      // Compact state key: agentX_agentY_inCover_distanceBucket_missionPhase
+      const state = `${this.agentPos[0]}_${this.agentPos[1]}_${inCover}_${distanceBucket}_${missionPhase}`;
+      Logger.log(`State: ${state} (agentPos=${JSON.stringify(this.agentPos)}, inCover=${inCover}, minEnemyDistance=${minEnemyDistance.toFixed(1)}, bucket=${distanceBucket}, returning=${this.returning})`);
+      return state;
     } catch (e) {
       Logger.error(`Error in getState: ${e.message}`);
-      return JSON.stringify({});
+      return "0_0_0_2_0"; // Default to starting position, far distance, going to goal
     }
   }
 
@@ -411,8 +429,8 @@ export class GridWorld {
       let reward = this.params.timePenalty;
       const [x, y] = this.agentPos;
       const target = this.returning ? [0, 0] : [14, 14];
-      const prevDistance = this.prevDistance || (Math.abs(this.agentPos[0] - target[0]) + Math.abs(this.agentPos[1] - target[1]));
-      const newDistance = Math.abs(this.agentPos[0] - target[0]) + Math.abs(this.agentPos[1] - target[1]);
+      const prevDistance = this.prevDistance || this.getGoalDistance(this.agentPos);
+      const newDistance = this.getGoalDistance(this.agentPos);
       this.prevDistance = newDistance;
 
       const minDistance = this.getMinDistanceToEnemy();
@@ -422,8 +440,9 @@ export class GridWorld {
         if (this.grid[x][y] === 'C') {
           forwardReward += 0.5;
           Logger.log(`Cover progress at ${this.agentPos}, bonus: +0.5`);
+        } else if (minDistance <= 3.0) {
+          forwardReward *= 0.7;
         }
-        else if (minDistance <= 3.0) forwardReward *= 0.7;
         reward += forwardReward;
         Logger.log(`Progress: Distance to goal decreased from ${prevDistance.toFixed(2)} to ${newDistance.toFixed(2)}, forwardReward: ${forwardReward.toFixed(2)}`);
       }
@@ -503,7 +522,7 @@ export class GridWorld {
   }
 
   getPreviousPos() {
-    return this.agentPos;
+    return this.positionHistory.length > 1 ? this.positionHistory[this.positionHistory.length - 2].split(',').map(Number) : this.agentPos;
   }
 
   resetOnDetection(reward) {
@@ -547,15 +566,14 @@ export class GridWorld {
     const returnObj = {
       agentPos: this.agentPos,
       path: [this.agentPos],
-      done: false, // Match older script
+      done: false,
       reward,
       running: true,
       detected: true,
       resetFlag: true,
-      glowDuration: 500,
-      exposures: this.stats.exposures // Added for older UI compatibility
+      exposures: this.stats.exposures
     };
-    Logger.log(`UI receiving detected: true, glowDuration: ${returnObj.glowDuration}, exposures: ${returnObj.exposures}`);
+    Logger.log(`UI receiving detected: true, glowDuration: ${returnObj.glowDuration || 500}, exposures: ${returnObj.exposures}`);
     Logger.log(`Returning: ${JSON.stringify(returnObj)}`);
     return returnObj;
   }
@@ -852,6 +870,10 @@ export class GridWorld {
         }
       }
       this.params = { ...this.params, ...validatedParams };
+      // Recompute LOS cache if radius or range changed
+      if ('enemyRadius' in validatedParams || 'losRange' in validatedParams) {
+        this.losCache = this.precomputeLOSCache();
+      }
       Logger.log(`Updated parameters: ${JSON.stringify(validatedParams)}`);
     } catch (e) {
       Logger.error(`Error in updateParams: ${e.message}`);

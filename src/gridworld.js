@@ -5,12 +5,12 @@ import { Logger } from './utils/Logger.js';
 export class GridWorldApp {
   constructor() {
     Logger.log("GridWorldApp constructor started at", new Date().toISOString());
-    this.world = new GridWorld();
+    this.world = new GridWorld(this);
     this.sceneManager = new SceneManager(document.getElementById('canvas'), this.world.grid, this.world.params, this);
     this.losDisplayMode = 'radius';
     this.running = false;
     this.modelLoaded = false;
-    this.simulationDelay = 1000;
+    this.simulationDelay = 100;
 
     this.setupUI();
     Logger.log("GridWorldApp constructor completed at", new Date().toISOString());
@@ -43,7 +43,10 @@ export class GridWorldApp {
 
     const loadModelDiv = document.createElement('div');
     loadModelDiv.className = 'mb-4';
-    loadModelDiv.innerHTML = '<input type="file" id="load-model-input" accept=".json" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">';
+    loadModelDiv.innerHTML = `
+      <label class="block text-sm font-medium text-gray-700 mb-1">Load Trained Model</label>
+      <input type="file" id="load-model-input" accept=".json" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+    `;
     controls.appendChild(loadModelDiv);
     const loadModelInput = document.getElementById('load-model-input');
     if (loadModelInput) {
@@ -154,7 +157,12 @@ export class GridWorldApp {
         Logger.log("Start/Pause button clicked");
         this.running = !this.running;
         startPauseButton.textContent = this.running ? 'Pause' : 'Start';
-        if (this.running && !this.modelLoaded) this.simulationLoop();
+        if (this.running) {
+          Logger.log("Resuming simulation");
+          this.simulationLoop();
+        } else {
+          Logger.log("Pausing simulation");
+        }
       });
       resetButton.addEventListener('click', () => {
         Logger.log("Reset button clicked");
@@ -162,7 +170,7 @@ export class GridWorldApp {
         this.sceneManager.updateAgent(resetResult.agentPos, this.world.grid, this.world.enemies);
         this.sceneManager.updatePath(resetResult.path, this.world.grid);
         this.updateMetrics();
-        if (this.running && !this.modelLoaded) this.simulationLoop();
+        if (this.running) this.simulationLoop();
       });
     }
 
@@ -296,16 +304,12 @@ export class GridWorldApp {
   }
 
   simulationLoop() {
-    if (!this.running) return;
-    const result = this.world.simulateStep();
-    if (result.done) {
-      this.updateMetrics();
-      if (!this.modelLoaded && this.running) {
-        Logger.log(`Applying simulation delay of ${this.simulationDelay}ms after episode completion`);
-        setTimeout(() => this.simulationLoop(), this.simulationDelay);
-        return;
-      }
+    if (!this.running) {
+      Logger.log("Simulation loop stopped due to paused state");
+      return;
     }
+    const result = this.world.simulateStep();
+    this.updateMetrics();
     this.sceneManager.animateAgent(
       result.agentPos,
       this.world.grid,
@@ -315,10 +319,8 @@ export class GridWorldApp {
         this.sceneManager.updatePath(result.path, this.world.grid);
         this.updateMetrics();
         this.checkAgentMovement();
-        if (!result.done) {
-          Logger.log(`Applying simulation delay of ${this.simulationDelay}ms`);
-          setTimeout(() => this.simulationLoop(), this.simulationDelay);
-        }
+        Logger.log(`Scheduling next simulation step with delay ${this.simulationDelay}ms`);
+        setTimeout(() => this.simulationLoop(), this.simulationDelay);
       }
     );
   }
