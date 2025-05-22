@@ -75,7 +75,7 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 ## Configuration
 
 - **Grid**:
-  - Size: 15x15
+  - Size: 15x17
   - Symbols:
     - `W`: Wall
     - `C`: Cover
