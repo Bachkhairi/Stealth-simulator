@@ -18,7 +18,6 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 - [Tweakable Parameters](#tweakable-parameters)
 - [Development](#development)
 - [Contributing](#contributing)
-- [License](#license)
 - [Acknowledgments](#acknowledgments)
 
 ---
