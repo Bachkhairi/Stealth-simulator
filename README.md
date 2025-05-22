@@ -1,4 +1,4 @@
-```markdown
+
 # Stealth Mission Simulator
 
 A reinforcement learning environment where an agent navigates a grid to reach a goal while avoiding patrolling enemies.  
