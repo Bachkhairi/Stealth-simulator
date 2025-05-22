@@ -24,7 +24,7 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 
 ## Features
 
-- **15x15 Grid Environment**: Includes walls, cover, a start point (S), and a goal (G).
+- **15x17 Grid Environment**: Includes walls, cover, a start point (S), and a goal (G).
 - **Reinforcement Learning Agent**: Learns optimal paths using Q-learning while avoiding enemies.
 - **Dynamic Enemies**: 5 enemies with 4-step back-and-forth patrol patterns.
 - **Reward System**: Balanced rewards and penalties for progress, safety, and efficiency.
