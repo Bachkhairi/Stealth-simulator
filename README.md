@@ -1,4 +1,3 @@
-
 # Stealth Mission Simulator
 
 A reinforcement learning environment where an agent navigates a grid to reach a goal while avoiding patrolling enemies.  
@@ -6,9 +5,7 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 
 ---
 
-# 🎮 [Click here to try the live demo!](https://bachkhairi.github.io/Stealth-simulator/)
-
-
+# 🎮 [Try it for yourself!](https://bachkhairi.github.io/Stealth-simulator/)
 
 ---
 
@@ -18,6 +15,7 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
+- [Tweakable Parameters](#tweakable-parameters)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -101,6 +99,28 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 
 ---
 
+## Tweakable Parameters
+
+All parameters below are adjustable and influence how the RL agent behaves and learns. You can tweak these in the UI or code to experiment with different strategies:
+
+| Parameter           | Description                                                                 |
+|---------------------|-----------------------------------------------------------------------------|
+| `alpha (α)`         | Learning rate (e.g., 0.5) – how quickly the agent updates Q-values          |
+| `gamma (γ)`         | Discount factor (e.g., 0.8) – weights future rewards over immediate ones     |
+| `epsilon (ε)`       | Exploration rate (e.g., 0.5) – balance between exploring vs exploiting       |
+| `epsilonDecay`      | Decay rate (e.g., 0.999) – gradually reduces ε to favor learning over time   |
+| `minEpsilon`        | Minimum ε (e.g., 0.01) – ensures some randomness always remains              |
+| `timePenalty`       | Penalty per step (e.g., -0.1) – encourages efficiency                        |
+| `forwardReward`     | Reward for progress toward goal (e.g., 1) – motivates forward movement       |
+| `detectionPenalty`  | Penalty for enemy detection (e.g., -10) – discourages unsafe actions         |
+| `enemyRadius`       | Enemy vision range (e.g., 1.5 tiles) – affects difficulty of stealth         |
+| `stealthReward`     | Reward for using cover (e.g., 0.1) – promotes strategic hiding               |
+| `coverStreakBonus`  | Bonus for consecutive cover use (e.g., 0.1) – reinforces stealth behavior    |
+
+These allow you to strike a balance between aggressive, stealthy, or safe navigation behaviors.
+
+---
+
 ## Development
 
 - **Tech Stack**:
@@ -137,4 +157,3 @@ We welcome contributions!
 - [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
 - [Tailwind CSS](https://tailwindcss.com/) for UI components
 - The reinforcement learning community for continuous inspiration and knowledge
-
