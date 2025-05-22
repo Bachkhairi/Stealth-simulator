@@ -1,8 +1,13 @@
-
+```markdown
 # Stealth Mission Simulator
 
 A reinforcement learning environment where an agent navigates a grid to reach a goal while avoiding patrolling enemies.  
 This project uses **Three.js** for rendering and **Q-learning** for the agent's decision-making.
+
+---
+
+🎮 **[Click here to try the live demo!](https://bachkhairi.github.io/Stealth-simulator/)**  
+Explore the simulation in your browser — no setup needed!
 
 ---
 
@@ -124,13 +129,11 @@ We welcome contributions!
 4. Push to your fork and submit a pull request
 ```
 
-
 ---
-
 
 ## Acknowledgments
 
 - [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
 - [Tailwind CSS](https://tailwindcss.com/) for UI components
 - The reinforcement learning community for continuous inspiration and knowledge
-
+```
