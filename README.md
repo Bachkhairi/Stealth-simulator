@@ -6,8 +6,9 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
 
 ---
 
-🎮 **[Click here to try the live demo!](https://bachkhairi.github.io/Stealth-simulator/)**  
-Explore the simulation in your browser — no setup needed!
+# 🎮 [Click here to try the live demo!](https://bachkhairi.github.io/Stealth-simulator/)
+
+
 
 ---
 
