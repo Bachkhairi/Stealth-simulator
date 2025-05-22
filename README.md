@@ -1,4 +1,4 @@
-```markdown
+
 # Stealth Mission Simulator
 
 A reinforcement learning environment where an agent navigates a grid to reach a goal while avoiding patrolling enemies.  
@@ -136,4 +136,4 @@ We welcome contributions!
 - [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
 - [Tailwind CSS](https://tailwindcss.com/) for UI components
 - The reinforcement learning community for continuous inspiration and knowledge
-```
+
