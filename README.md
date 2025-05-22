@@ -103,7 +103,7 @@ This project uses **Three.js** for rendering and **Q-learning** for the agent's 
   - [Tailwind CSS](https://tailwindcss.com/) — UI styling via CDN
 
 - **Enhancements** (optional goals):
-  - Add advanced RL (e.g., SARSA, DQN)
+  - Improve RL agent
   - Visualize value functions or Q-tables
   - Add Chart.js for real-time metric plotting
 
@@ -124,19 +124,13 @@ We welcome contributions!
 4. Push to your fork and submit a pull request
 ```
 
-Please follow the coding style used in the project.
 
 ---
 
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
 
 ## Acknowledgments
 
 - [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
 - [Tailwind CSS](https://tailwindcss.com/) for UI components
 - The reinforcement learning community for continuous inspiration and knowledge
-```
+
