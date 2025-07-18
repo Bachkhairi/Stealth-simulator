@@ -138,19 +138,6 @@ These allow you to strike a balance between aggressive, stealthy, or safe naviga
 
 ---
 
-## Contributing
-
-We welcome contributions!
-
-```text
-1. Fork the repository
-2. Create a new branch: git checkout -b feature-name
-3. Make your changes and commit them
-4. Push to your fork and submit a pull request
-```
-
----
-
 ## Acknowledgments
 
 - [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
