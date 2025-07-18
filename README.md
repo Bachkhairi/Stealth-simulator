@@ -136,10 +136,4 @@ These allow you to strike a balance between aggressive, stealthy, or safe naviga
   - Use `Logger.js` for structured logging
   - Monitor the browser developer console for warnings/errors
 
----
 
-## Acknowledgments
-
-- [Three.js](https://threejs.org/) and [TWEEN.js](https://github.com/tweenjs/tween.js) for graphics and animation
-- [Tailwind CSS](https://tailwindcss.com/) for UI components
-- The reinforcement learning community for continuous inspiration and knowledge
