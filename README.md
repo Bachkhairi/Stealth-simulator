@@ -127,13 +127,6 @@ These allow you to strike a balance between aggressive, stealthy, or safe naviga
   - [TWEEN.js](https://github.com/tweenjs/tween.js) — smooth animations
   - [Tailwind CSS](https://tailwindcss.com/) — UI styling via CDN
 
-- **Enhancements** (optional goals):
-  - Improve RL agent
-  - Visualize value functions or Q-tables
-  - Add Chart.js for real-time metric plotting
 
-- **Debugging**:
-  - Use `Logger.js` for structured logging
-  - Monitor the browser developer console for warnings/errors
 
 
